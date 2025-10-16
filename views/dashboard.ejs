@@ -3,13 +3,17 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>G-Realm - Email Sender</title>
+    <title>Mtoto W'Afrika Child Care Ministries - Email Sender</title>
     <link rel="stylesheet" href="/css/style.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
   </head>
   <body>
-    <a href="/logout" class="logout-button-icon"><i class="fas fa-sign-out-alt"></i> Logout</a>
+    <a href="/logout" class="logout-button-icon"
+      ><i class="fas fa-sign-out-alt"></i> Logout</a
+    >
     <div class="container dashboard-container">
       <div class="header">
         <h1>Email Dashboard</h1>
@@ -29,6 +33,21 @@
                 name="csvfile"
                 accept=".csv"
                 required />
+            </div>
+            <div class="input-group">
+              <label for="attachment">Attach a file (optional)</label>
+              <input
+                type="file"
+                id="attachment"
+                name="attachment"
+                accept="application/pdf,image/*,video/*" />
+              <small
+                >Supported: PDF, images, videos. Max file size depends on your
+                SMTP provider.</small
+              >
+              <div
+                id="attachment-info"
+                style="margin-top: 6px; font-size: 0.9rem; color: #333"></div>
             </div>
             <div class="input-group">
               <label>Email Format</label>
@@ -52,7 +71,11 @@
             </div>
             <div class="input-group">
               <label for="message">Message</label>
-              <textarea id="message" name="message" rows="15" required></textarea>
+              <textarea
+                id="message"
+                name="message"
+                rows="15"
+                required></textarea>
             </div>
             <button type="submit">Send Emails</button>
           </div>
@@ -60,6 +83,37 @@
       </form>
     </div>
     <script>
+      // Attachment UI feedback
+      (function () {
+        const attachmentInput = document.getElementById("attachment");
+        const info = document.getElementById("attachment-info");
+        const submitButton = document.querySelector('button[type="submit"]');
+        const MAX_BYTES = 10 * 1024 * 1024; // 10 MB
+
+        if (attachmentInput) {
+          attachmentInput.addEventListener("change", () => {
+            const file = attachmentInput.files && attachmentInput.files[0];
+            if (!file) {
+              info.textContent = "";
+              submitButton.disabled = false;
+              return;
+            }
+
+            const sizeMB = (file.size / (1024 * 1024)).toFixed(2);
+            info.textContent = `${file.name} — ${sizeMB} MB`;
+
+            if (file.size > MAX_BYTES) {
+              info.style.color = "crimson";
+              // Warning only: do not disable submit, user may still choose to send
+              info.textContent +=
+                " — File appears large (over 10 MB). Your SMTP provider may reject large attachments.";
+            } else {
+              info.style.color = "#333";
+            }
+          });
+        }
+      })();
+
       function showProgress() {
         Swal.fire({
           title: "Sending Emails...",
