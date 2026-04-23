@@ -65,7 +65,7 @@ async function sendAnalyticsReport(
   originalMessage,
   emailType,
   subject,
-  successfulRecipients
+  successfulRecipients,
 ) {
   const analyticsEmails = getAnalyticsEmails();
 
@@ -155,14 +155,21 @@ router.post("/send", isAuthenticated, (req, res) => {
           tls: {
             rejectUnauthorized: false,
           },
+          pool: true,
+          maxConnections: 1,
+          maxMessages: 100,
         });
+
+        const emailDelayMs = Number(process.env.EMAIL_SEND_DELAY_MS) || 2000;
+        const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
         let successfulEmails = 0;
         let failedEmails = 0;
         const totalEmails = results.length;
         const successfulRecipients = [];
 
-        const promises = results.map((row) => {
+        for (let i = 0; i < results.length; i++) {
+          const row = results[i];
           // Normalize possible header names: prefer 'partner', fallback to 'schoolname' or 'name'
           const name = (row.name || row.partner || row.schoolname || "").trim();
           const recipientEmail = (row.email || row.Email || "").trim();
@@ -175,7 +182,8 @@ router.post("/send", isAuthenticated, (req, res) => {
           ) {
             console.warn("Skipping invalid recipient row:", row);
             failedEmails++;
-            return Promise.resolve();
+            if (i < results.length - 1) await sleep(emailDelayMs);
+            continue;
           }
 
           const mailOptions = {
@@ -190,20 +198,20 @@ router.post("/send", isAuthenticated, (req, res) => {
 
           // Common bracketed placeholders
           personalizedMessage = personalizedMessage
-            .replace(/\[School Name\]/gi, placeholderValue)
+            .replace(/\[Name\]/gi, placeholderValue)
             .replace(/\[Partner\]/gi, placeholderValue)
-            .replace(/\[Name\]/gi, placeholderValue);
+            .replace(/\[name\]/gi, placeholderValue);
 
           // Mustache-style {{name}} or {{Name}}
           personalizedMessage = personalizedMessage.replace(
             /{{\s*name\s*}}/gi,
-            placeholderValue
+            placeholderValue,
           );
 
           // Double-bracket style [[Name]]
           personalizedMessage = personalizedMessage.replace(
             /\[\[\s*name\s*\]\]/gi,
-            placeholderValue
+            placeholderValue,
           );
 
           if (emailType === "html") {
@@ -222,25 +230,24 @@ router.post("/send", isAuthenticated, (req, res) => {
             ];
           }
 
-          return transporter
-            .sendMail(mailOptions)
-            .then(() => {
-              successfulEmails++;
-              successfulRecipients.push({
-                name: name,
-                email: recipientEmail,
-              });
-            })
-            .catch((error) => {
-              console.error(
-                `Failed to send email to ${recipientEmail}:`,
-                error
-              );
-              failedEmails++;
+          try {
+            await transporter.sendMail(mailOptions);
+            successfulEmails++;
+            successfulRecipients.push({
+              name: name,
+              email: recipientEmail,
             });
-        });
+          } catch (error) {
+            console.error(`Failed to send email to ${recipientEmail}:`, error);
+            failedEmails++;
+          }
 
-        await Promise.all(promises);
+          if (i < results.length - 1) await sleep(emailDelayMs);
+        }
+
+        if (typeof transporter.close === "function") {
+          transporter.close();
+        }
 
         // Write successful recipients to CSV
         const csvWriter = createCsvWriter({
@@ -263,7 +270,7 @@ router.post("/send", isAuthenticated, (req, res) => {
           message,
           emailType,
           subject,
-          successfulRecipients
+          successfulRecipients,
         );
 
         // Clean up uploaded files
